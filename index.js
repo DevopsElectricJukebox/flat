@@ -11,7 +11,8 @@ function flatten (target, opts) {
   var maxDepth = opts.maxDepth
   var output = {}
 
-  function step (object, prev, currentDepth) {
+
+  function step (object, prev, currentDepth, parentIsArray) {
     currentDepth = currentDepth || 1
     Object.keys(object).forEach(function (key) {
       var value = object[key]
@@ -23,13 +24,20 @@ function flatten (target, opts) {
         type === '[object Array]'
       )
 
-      var newKey = prev
+      var newKey;
+      if (parentIsArray) {
+        newKey = prev
+        ? prev + '[' + key + ']'
+        : key
+      } else {
+        newKey = prev
         ? prev + delimiter + key
         : key
+      }
 
-      if (!isarray && !isbuffer && isobject && Object.keys(value).length &&
+      if (!(opts.safe && isarray) && !isbuffer && isobject && Object.keys(value).length &&
         (!opts.maxDepth || currentDepth < maxDepth)) {
-        return step(value, newKey, currentDepth + 1)
+        return step(value, newKey, currentDepth + 1, Array.isArray(value))
       }
 
       output[newKey] = value
@@ -71,6 +79,13 @@ function unflatten (target, opts) {
   })
 
   sortedKeys.forEach(function (key) {
+    var value = target[key];
+
+    var matchArray = /^(.*?)\[(\d+)\](.*)$/.exec(key);
+    if (matchArray) {      
+      key = matchArray[1] + delimiter + matchArray[2] + matchArray[3];
+    }
+
     var split = key.split(delimiter)
     var key1 = getkey(split.shift())
     var key2 = getkey(split[0])
@@ -88,10 +103,11 @@ function unflatten (target, opts) {
         return
       }
 
+      var isarray = matchArray;
+
       if ((overwrite && !isobject) || (!overwrite && recipient[key1] == null)) {
         recipient[key1] = (
-          typeof key2 === 'number' &&
-          !opts.object ? [] : {}
+          (isarray && !opts.object) ? [] : {}
         )
       }
 
@@ -103,7 +119,7 @@ function unflatten (target, opts) {
     }
 
     // unflatten again for 'messy objects'
-    recipient[key1] = unflatten(target[key], opts)
+    recipient[key1] = unflatten(value, opts)
   })
 
   return result
