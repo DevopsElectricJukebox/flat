@@ -74,6 +74,17 @@ function unflatten (target, opts) {
       : parsedKey
   }
 
+  function iskeyarray(key) {
+    return /^\d+\]$/.test(key);
+  }
+
+  function formatkey(key) {
+    if (iskeyarray(key)) {
+      key = key.slice(0, -1);
+    }
+    return key;
+  }
+
   var sortedKeys = Object.keys(target).sort(function (keyA, keyB) {
     return keyA.length - keyB.length
   })
@@ -81,17 +92,16 @@ function unflatten (target, opts) {
   sortedKeys.forEach(function (key) {
     var value = target[key];
 
-    var matchArray = /^(.*?)\[(\d+)\](.*)$/.exec(key);
-    if (matchArray) {      
-      key = matchArray[1] + delimiter + matchArray[2] + matchArray[3];
-    }
-
-    var split = key.split(delimiter)
+    var split = key.split(/\.|\[/)
     var key1 = getkey(split.shift())
     var key2 = getkey(split[0])
     var recipient = result
 
     while (key2 !== undefined) {
+      var isarray = iskeyarray(key2);
+      key1 = formatkey(key1);
+      key2 = formatkey(key2);
+
       var type = Object.prototype.toString.call(recipient[key1])
       var isobject = (
         type === '[object Object]' ||
@@ -102,8 +112,6 @@ function unflatten (target, opts) {
       if (!overwrite && !isobject && typeof recipient[key1] !== 'undefined') {
         return
       }
-
-      var isarray = matchArray;
 
       if ((overwrite && !isobject) || (!overwrite && recipient[key1] == null)) {
         recipient[key1] = (
@@ -117,6 +125,8 @@ function unflatten (target, opts) {
         key2 = getkey(split[0])
       }
     }
+
+    key1 = formatkey(key1);
 
     // unflatten again for 'messy objects'
     recipient[key1] = unflatten(value, opts)
